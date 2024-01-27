@@ -2,42 +2,32 @@ import { serve } from "https://deno.land/std@0.185.0/http/server.ts"
 import { serveDir } from "https://deno.land/std@0.185.0/http/file_server.ts"
 import { generate_name } from "./modules/generate_name.js"
 
-const kv = await Deno.openKv();
+const kv = await Deno.openKv (`/Users/capo_greco/Documents/deno_kv_test/test`);
+// const kv = await Deno.openKv ()
+
+let control = false
 
 const req_handler = async incoming_req => {
    let req = incoming_req
-   const path = new URL(req.url).pathname
-   const upgrade = req.headers.get("upgrade") || ""
-   if (upgrade.toLowerCase() == "websocket") {
-      const id = req.headers.get(`sec-websocket-key`)
-      const name = generate_name()
+   const path = new URL (req.url).pathname
+   const upgrade = req.headers.get ("upgrade") || ""
+   if (upgrade.toLowerCase () == "websocket") {
+      const id = req.headers.get (`sec-websocket-key`)
+      const name = generate_name ()
       const { socket, response } = Deno.upgradeWebSocket(req)
       socket.onopen = async () => {
-         const synth = {
-            socket: socket,
-            name: name,
-            last_update: Date.now(),
-            ping: false,
-            audio_enabled: false,
-         }
-         await kv.set([ `synth`, id ], synth)
          socket.send(JSON.stringify({
             method: `id`,
             content: { id, name }
          }))
+         if (!control) {
+            control = socket
+            control.id = id
+         }
       }
       socket.onmessage = async m => {
          const { method, content } = JSON.parse(m.data)
          const manage_method = {
-            ready: async () => {
-               const { value } = await kv.get([ `synth`, id ])
-               value.audio_enabled = content.audio_enabled
-               value.last_update = Date.now ()
-               await kv.set([ `synth`, id ], value)
-               if (value.audio_enabled) {
-                  console.log (`${ name } is ready`)
-               }
-            },
             pong: async () => {
                const now = Date.now ()
                const { value } = await kv.get([ `synth`, id ])
@@ -52,15 +42,17 @@ const req_handler = async incoming_req => {
       }
       socket.onerror = e => console.log(`socket error: ${e.message}`)
       socket.onclose = async () => {
-         const result = await kv.delete ([ `synth`, id ])
-         console.dir(result)
+         if (!control) return
+         if (control.id == id) {
+            control = false
+         }
       }
 
       return response
    }
    
    const options = {
-      fsRoot : `synth`,
+      fsRoot : `control`,
       index  : `index.html`,
    }
 
@@ -68,4 +60,21 @@ const req_handler = async incoming_req => {
 }
 
 
-serve (req_handler, { port: 80 })
+serve (req_handler, { port: 8080 })
+console.log (`server is running on port 8080`)
+
+async function update_list () {
+   const synths = kv.list ({ prefix : [ `synth` ]})
+   const synth_array = []
+   for await (const { value } of synths) {
+      synth_array.push (value.name)
+   }
+   if (control) {
+      control.send (JSON.stringify ({
+         method: `list`,
+         content: synth_array,
+      }))
+   }
+}
+
+setInterval (update_list, 200)
