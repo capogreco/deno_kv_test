@@ -1,4 +1,5 @@
-const ws_address = `ws://localhost:8080`
+const ws_address = `ws://difficult-wasp-83.deno.dev`
+// const ws_address = `ws://localhost:8080`
 
 const socket = new WebSocket (ws_address)
 
