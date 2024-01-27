@@ -2,8 +2,8 @@ import { serve } from "https://deno.land/std@0.185.0/http/server.ts"
 import { serveDir } from "https://deno.land/std@0.185.0/http/file_server.ts"
 import { generate_name } from "./modules/generate_name.js"
 
-const kv = await Deno.openKv (`/Users/capo_greco/Documents/deno_kv_test/test`);
-// const kv = await Deno.openKv ()
+// const kv = await Deno.openKv (`/Users/capo_greco/Documents/deno_kv_test/test`);
+const kv = await Deno.openKv ()
 
 let control = false
 
